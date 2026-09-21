@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="456" height="456" viewBox="0 0 456 456" version="1.1" xmlns="http://www.w3.org/2000/svg" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;">
+    <!-- 元件自封袋：袋身 -->
+    <path d="M 141 159 h 174 a 13 13 0 0 1 13 13 v 173 a 13 13 0 0 1 -13 13 h -174 a 13 13 0 0 1 -13 -13 v -173 a 13 13 0 0 1 13 -13 z" fill="#F2F7FF"/>
+    <!-- 袋口封条（捏合处） -->
+    <path d="M 128 159 c 0 -21 18 -29 40 -31 h 116 c 22 2 40 10 40 31 z" fill="#C6D8F2"/>
+    <rect x="147" y="143" width="162" height="12" rx="6" fill="#9FBEE8"/>
+
+    <!-- 袋上标签：深色底 -->
+    <rect x="147" y="191" width="162" height="101" rx="8" fill="#163A66"/>
+
+    <!-- 条纹码（白条，宽度错落） -->
+    <g fill="#F2F7FF">
+        <rect x="160" y="209" width="10" height="53" rx="2"/>
+        <rect x="174" y="209" width="5"  height="53" rx="1.5"/>
+        <rect x="183" y="209" width="13" height="53" rx="2"/>
+        <rect x="200" y="209" width="6"  height="53" rx="1.5"/>
+        <rect x="210" y="209" width="10" height="53" rx="2"/>
+        <rect x="224" y="209" width="5"  height="53" rx="1.5"/>
+        <rect x="233" y="209" width="15" height="53" rx="2"/>
+        <rect x="252" y="209" width="6"  height="53" rx="1.5"/>
+        <rect x="262" y="209" width="10" height="53" rx="2"/>
+        <rect x="276" y="209" width="5"  height="53" rx="1.5"/>
+        <rect x="284" y="209" width="12" height="53" rx="2"/>
+    </g>
+    <!-- 标签下方码值点 -->
+    <g fill="#7FA6D9">
+        <rect x="160" y="272" width="8"  height="4.5" rx="1.5"/>
+        <rect x="171" y="272" width="15" height="4.5" rx="1.5"/>
+        <rect x="190" y="272" width="9"  height="4.5" rx="1.5"/>
+        <rect x="203" y="272" width="12" height="4.5" rx="1.5"/>
+        <rect x="219" y="272" width="7"  height="4.5" rx="1.5"/>
+    </g>
+
+    <!-- 袋内元件引脚示意 -->
+    <g stroke="#A9C4E8" stroke-width="4.5" stroke-linecap="round">
+        <line x1="160" y1="317" x2="296" y2="317"/>
+        <line x1="160" y1="333" x2="296" y2="333"/>
+    </g>
+
+    <!-- 命中对勾徽章（绿色 = 命中色，与 App 内语义一致） -->
+    <circle cx="314" cy="324" r="57" fill="#43A047"/>
+    <circle cx="314" cy="324" r="57" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-opacity="0.25"/>
+    <path d="M 289 326 l 18 18 l 36 -41"
+          fill="none" stroke="#FFFFFF" stroke-width="15"
+          stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

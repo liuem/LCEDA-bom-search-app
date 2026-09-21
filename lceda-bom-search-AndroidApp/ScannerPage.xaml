@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="lceda_bom_search_AndroidApp.ScannerPage"
+             Title="扫码找料"
+             BackgroundColor="Black"
+             NavigationPage.HasNavigationBar="False">
+
+    <Grid RowDefinitions="*,Auto,Auto,Auto,Auto">
+
+        <Grid Grid.Row="0">
+            <!-- 相机控件在获得权限后由代码动态挂载，避免无权限状态下初始化失败导致黑屏。
+                 点击画面=对焦、捏合=变焦、双击=变焦复位（原生层手势，见 FastScanHandler） -->
+            <ContentView x:Name="CameraHost" />
+
+            <Label x:Name="CameraHint"
+                   Text="相机初始化中…&#10;（若长时间无画面，请检查相机权限）"
+                   TextColor="#99FFFFFF"
+                   FontSize="16"
+                   HorizontalTextAlignment="Center"
+                   VerticalTextAlignment="Center"
+                   Padding="30" />
+
+            <Button x:Name="TorchBtn"
+                    Text="🔦"
+                    FontSize="22"
+                    CornerRadius="30"
+                    WidthRequest="56"
+                    HeightRequest="56"
+                    Margin="0,18,18,0"
+                    HorizontalOptions="End"
+                    VerticalOptions="Start"
+                    BackgroundColor="#66000000"
+                    Clicked="OnTorchToggled"
+                    IsVisible="{OnPlatform Android=True, iOS=True, Default=False}" />
+        </Grid>
+
+        <VerticalStackLayout Grid.Row="1" Padding="18,12" Spacing="4" BackgroundColor="#DD000000">
+            <Label x:Name="StatusLabel"
+                   Text="对准袋子上的二维码"
+                   FontSize="23"
+                   FontAttributes="Bold"
+                   TextColor="White" />
+            <Label x:Name="DetailLabel"
+                   Text="叮咚=需要（默认按袋标称计入），下行低音=不需要"
+                   FontSize="14"
+                   TextColor="#B3FFFFFF" />
+            <Label x:Name="RawLabel"
+                   Text=""
+                   FontSize="11"
+                   TextColor="#66FFFFFF"
+                   MaxLines="2"
+                   LineBreakMode="TailTruncation" />
+        </VerticalStackLayout>
+
+        <!-- 数量修正条（非阻塞）：命中后默认按标称计入，需要时在这里修改 -->
+        <VerticalStackLayout x:Name="CorrectionPanel" Grid.Row="2" Padding="14,8" Spacing="6" BackgroundColor="#EE1B5E20" IsVisible="False">
+            <Label x:Name="CorrContextLabel" Text="" FontSize="13" TextColor="#CCFFFFFF" />
+            <HorizontalStackLayout Spacing="8">
+                <Label Text="这袋实际" VerticalOptions="Center" FontSize="14" TextColor="White" />
+                <Entry x:Name="CorrQtyEntry"
+                       Placeholder="个数"
+                       Keyboard="Numeric"
+                       WidthRequest="90"
+                       TextColor="White"
+                       PlaceholderColor="#80FFFFFF" />
+                <Label Text="个" VerticalOptions="Center" FontSize="14" TextColor="White" />
+                <Button Text="改" Clicked="OnAdjustQty" FontSize="14" Padding="14,6" />
+                <Button Text="⚑ 标缺量" Clicked="OnFlagMissing" FontSize="14" Padding="10,6" BackgroundColor="#8BC34A" />
+            </HorizontalStackLayout>
+        </VerticalStackLayout>
+
+        <!-- 一维物流码绑定条（非阻塞）：X 码第一次出现时在此输入 C 编号 -->
+        <VerticalStackLayout x:Name="BindPanel" Grid.Row="3" Padding="14,8" Spacing="6" BackgroundColor="#EE5D4037" IsVisible="False">
+            <Label x:Name="BindContextLabel" Text="" FontSize="13" TextColor="#CCFFFFFF" />
+            <HorizontalStackLayout Spacing="8">
+                <Entry x:Name="BindLcscEntry"
+                       Placeholder="C 编号（袋子标签上印着，如 C3151749）"
+                       Keyboard="Plain"
+                       TextColor="White"
+                       PlaceholderColor="#80FFFFFF"
+                       HorizontalOptions="FillAndExpand" />
+                <Button Text="绑定并记账" Clicked="OnBindX" FontSize="14" Padding="10,6" />
+            </HorizontalStackLayout>
+        </VerticalStackLayout>
+
+        <Grid Grid.Row="4" Padding="14,10" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" BackgroundColor="#DD000000">
+            <Button Grid.Column="0" Text="🖼 相册" FontSize="13" Padding="10,8" Clicked="OnPickImage" />
+            <Entry x:Name="ManualEntry"
+                   Grid.Column="1"
+                   Placeholder="手动输入 / 粘贴码内容"
+                   PlaceholderColor="#80FFFFFF"
+                   TextColor="White"
+                   HorizontalOptions="Fill"
+                   ReturnType="Done"
+                   Completed="OnManualEntered" />
+            <Button Grid.Column="2" Text="识别" Clicked="OnManualEntered" />
+        </Grid>
+
+    </Grid>
+</ContentPage>

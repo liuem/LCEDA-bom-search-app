@@ -1,0 +1,12 @@
+# 默认文本文件统一 LF，二进制按扩展声明
+* text=auto
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.apk binary
+*.eext binary
+*.zip binary

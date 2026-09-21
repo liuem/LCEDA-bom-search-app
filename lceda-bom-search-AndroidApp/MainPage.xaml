@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="lceda_bom_search_AndroidApp.MainPage"
+             Title="备料清单">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- 头部：工程名 + 进度摘要 + 套数 -->
+        <VerticalStackLayout Grid.Row="0" Padding="18,12" Spacing="2">
+            <Label x:Name="ProjectLabel"
+                   Style="{StaticResource Headline}"
+                   SemanticProperties.HeadingLevel="Level1" />
+            <Label x:Name="SummaryLabel"
+                   Style="{StaticResource SubHeadline}"
+                   SemanticProperties.HeadingLevel="Level2" />
+            <HorizontalStackLayout x:Name="BoardsRow" Spacing="10" Margin="0,8,0,0" IsVisible="False">
+                <Label Text="焊接套数" VerticalOptions="Center" FontSize="15" />
+                <Button Text="−" Clicked="OnBoardsDown" Padding="14,2" Margin="0" />
+                <Label x:Name="BoardsLabel" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" />
+                <Button Text="＋" Clicked="OnBoardsUp" Padding="14,2" Margin="0" />
+                <Label Text="需要量 = 单板用量 × 套数" FontSize="12" TextColor="#888888" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+            <Label x:Name="LinkLabel"
+                   Text="🔗 联动服务启动中…"
+                   FontSize="13"
+                   TextColor="#64B5F6"
+                   Margin="0,8,0,0">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnLinkTapped" />
+                </Label.GestureRecognizers>
+            </Label>
+        </VerticalStackLayout>
+
+        <!-- 空状态：导入入口 -->
+        <VerticalStackLayout x:Name="EmptyView" Grid.Row="1" Padding="30" Spacing="16" VerticalOptions="Center">
+            <Label Text="🧰 BOM 找料助手"
+                   FontSize="30"
+                   FontAttributes="Bold"
+                   HorizontalTextAlignment="Center" />
+            <Label Text="导入 BOM 后，翻元件袋时逐袋扫码：&#10;· 本次需要 → 上扬“叮咚”+ 振动，屏上显示数量是否够&#10;· 不需要 → 低音“嘟”，直接放回去&#10;· 同袋重复扫 → 双击提示音，不重复计数"
+                   FontSize="15"
+                   HorizontalTextAlignment="Center"
+                   TextColor="{AppThemeBinding Light=#444444, Dark=#AAAAAA}" />
+            <VerticalStackLayout x:Name="FoundFilesView" Spacing="8">
+                <Label Text="📁 在应用目录发现了 BOM 文件，点击导入：" FontSize="14" TextColor="{AppThemeBinding Light=#666666, Dark=#999999}" />
+            </VerticalStackLayout>
+            <Button Text="导入 BOM 文件（.csv / .xlsx / .json）" Clicked="OnImportBom" />
+            <Button Text="加载演示 BOM（含手边的 W5500 袋）" Clicked="OnLoadDemo" />
+        </VerticalStackLayout>
+
+        <!-- 物料清单 -->
+        <CollectionView x:Name="LinesView" Grid.Row="1" IsVisible="False" SelectionMode="None">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="18,8" ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Grid.Column="0" Spacing="1">
+                            <HorizontalStackLayout Spacing="8">
+                                <Label Text="{Binding Lcsc}" FontSize="15" FontAttributes="Bold" />
+                                <Label Text="{Binding Badge}" FontSize="12" TextColor="{Binding BadgeColor}" VerticalTextAlignment="Center" />
+                            </HorizontalStackLayout>
+                            <Label Text="{Binding Sub}" FontSize="13" TextColor="{AppThemeBinding Light=#8A000000, Dark=#B3FFFFFF}" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="1"
+                               Text="{Binding Progress}"
+                               FontSize="16"
+                               FontAttributes="Bold"
+                               TextColor="{Binding ProgressColor}"
+                               VerticalTextAlignment="Center" />
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <!-- 底部操作 -->
+        <VerticalStackLayout Grid.Row="2" Padding="18,10" Spacing="8">
+            <Button x:Name="ScanBtn"
+                    Text="📷  开始扫码"
+                    FontSize="18"
+                    Clicked="OnScanClicked"
+                    IsVisible="False" />
+            <HorizontalStackLayout x:Name="ToolbarView" Spacing="10" HorizontalOptions="Center" IsVisible="False">
+                <Button Text="重新导入 BOM" Clicked="OnImportBom" FontSize="13" Padding="14,8" />
+                <Button Text="清空扫描记录" Clicked="OnResetScans" FontSize="13" Padding="14,8" />
+                <Button Text="📤 导出结果" Clicked="OnExportResults" FontSize="13" Padding="14,8" />
+                <Button Text="🔊 测试音效" Clicked="OnTestSounds" FontSize="13" Padding="14,8" />
+            </HorizontalStackLayout>
+        </VerticalStackLayout>
+
+    </Grid>
+</ContentPage>

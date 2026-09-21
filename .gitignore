@@ -1,0 +1,24 @@
+# 构建产物
+[Bb]in/
+[Oo]bj/
+[Dd]ist/
+
+# IDE 本机状态
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# 真实项目的 BOM 表与开发过程照片（隐私，不入库）
+lceda-bom-search-AndroidApp/doc/
+
+# 测试/临时
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+TestResults/
+[Ll]ogs/
