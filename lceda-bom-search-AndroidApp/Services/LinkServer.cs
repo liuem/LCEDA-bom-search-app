@@ -278,15 +278,14 @@ public static class LinkServer
             var head = await ReadHttpHead(stream);
             if (head is null) return;
 
-            var (method, path, headers) = head.Value;
-            if (headers.TryGetValue("upgrade", out var upgrade)
+            if (head.Headers.TryGetValue("upgrade", out var upgrade)
                 && upgrade.Contains("websocket", StringComparison.OrdinalIgnoreCase))
             {
-                await ServeWebSocket(stream, headers);
+                await ServeWebSocket(stream, head.Headers);
                 return;
             }
 
-            await ServeHttp(stream, method, path, headers);
+            await ServeHttp(stream, head);
         }
         catch { /* 单个连接异常直接断开 */ }
         finally
@@ -295,20 +294,32 @@ public static class LinkServer
         }
     }
 
-    static async Task<(string, string, Dictionary<string, string>)?> ReadHttpHead(NetworkStream s)
+    /// <summary>HTTP 头解析结果（bodyPrefix 用原始字节传递——文件上传的 body 可能是任意二进制，
+    /// 经过字符串中转会损坏：UTF-16 CSV / xlsx zip 都会被 UTF-8 解码破坏）。</summary>
+    sealed class HttpHead
+    {
+        public required string Method { get; init; }
+        public required string Path { get; init; }
+        public required Dictionary<string, string> Headers { get; init; }
+        public required byte[] BodyPrefix { get; init; }
+    }
+
+    static async Task<HttpHead?> ReadHttpHead(NetworkStream s)
     {
         var buf = new byte[8192];
-        var acc = new StringBuilder();
-        while (acc.Length < 65536)
+        var acc = new List<byte>(8192);
+        while (acc.Count < 65536)
         {
             var n = await s.ReadAsync(buf.AsMemory(0, buf.Length));
             if (n == 0) return null;
-            acc.Append(Encoding.UTF8.GetString(buf, 0, n));
-            if (acc.ToString().Contains("\r\n\r\n")) break;
+            acc.AddRange(buf[..n]);
+            if (IndexOfCrlfCrlf(acc) >= 0) break;
         }
-        var text = acc.ToString();
-        var end = text.IndexOf("\r\n\r\n", StringComparison.Ordinal);
-        var head = (end < 0 ? text : text[..end]).Split("\r\n");
+
+        var end = IndexOfCrlfCrlf(acc);
+        if (end < 0) return null;
+        var headText = Encoding.UTF8.GetString(acc.ToArray(), 0, end); // 头部是 ASCII
+        var head = headText.Split("\r\n");
         if (head.Length == 0) return null;
 
         var parts = head[0].Split(' ');
@@ -320,16 +331,36 @@ public static class LinkServer
             var i = line.IndexOf(':');
             if (i > 0) headers[line[..i].Trim()] = line[(i + 1)..].Trim();
         }
-        // 已经读进来的 body 前缀（Content-Length 可能小于一次读到的量）
-        var bodyPrefix = end < 0 ? "" : text[(end + 4)..];
-        headers["__bodyPrefix"] = bodyPrefix;
-        return (parts[0], parts[1], headers);
+
+        // 已经读进来的 body 前缀保持原始字节（Content-Length 可能小于一次读到的量）
+        var prefix = new byte[acc.Count - end - 4];
+        acc.CopyTo(end + 4, prefix, 0, prefix.Length);
+        return new HttpHead
+        {
+            Method = parts[0],
+            Path = parts[1],
+            Headers = headers,
+            BodyPrefix = prefix,
+        };
+    }
+
+    static int IndexOfCrlfCrlf(List<byte> data)
+    {
+        for (var i = 0; i + 3 < data.Count; i++)
+        {
+            if (data[i] == 13 && data[i + 1] == 10 && data[i + 2] == 13 && data[i + 3] == 10)
+                return i;
+        }
+        return -1;
     }
 
     // ---------------- HTTP ----------------
 
-    static async Task ServeHttp(NetworkStream s, string method, string path, Dictionary<string, string> headers)
+    static async Task ServeHttp(NetworkStream s, HttpHead head)
     {
+        var method = head.Method;
+        var path = head.Path;
+        var headers = head.Headers;
         try
         {
             if (method == "POST" && path.StartsWith("/bomfile", StringComparison.OrdinalIgnoreCase))
@@ -342,14 +373,14 @@ public static class LinkServer
                     name = Uri.UnescapeDataString(path[(q + 5)..].Split('&')[0]);
                     if (name.Contains('/') || name.Contains('\\')) name = Path.GetFileName(name);
                 }
-                var bytes = await ReadBodyBytes(s, headers);
+                var bytes = await ReadBodyBytes(s, head);
                 var reply = await ImportBomFile(bytes, name);
                 await WriteHttp(s, 200, reply);
                 return;
             }
             if (method == "POST" && path.StartsWith("/bom", StringComparison.OrdinalIgnoreCase))
             {
-                var body = await ReadBody(s, headers);
+                var body = await ReadBody(s, head);
                 var reply = await ImportBom(body);
                 await WriteHttp(s, 200, reply);
                 return;
@@ -410,14 +441,14 @@ public static class LinkServer
         catch { try { await WriteHttp(s, 500, "{\"error\":\"internal\"}"); } catch { } }
     }
 
-    static async Task<string> ReadBody(NetworkStream s, Dictionary<string, string> headers)
-        => Encoding.UTF8.GetString(await ReadBodyBytes(s, headers));
+    static async Task<string> ReadBody(NetworkStream s, HttpHead head)
+        => Encoding.UTF8.GetString(await ReadBodyBytes(s, head));
 
     /// <summary>二进制安全的请求体读取（xlsx 等文件上传不能走 UTF-8 字符串路径）。</summary>
-    static async Task<byte[]> ReadBodyBytes(NetworkStream s, Dictionary<string, string> headers)
+    static async Task<byte[]> ReadBodyBytes(NetworkStream s, HttpHead head)
     {
-        var prefix = Encoding.UTF8.GetBytes(headers.GetValueOrDefault("__bodyPrefix", ""));
-        if (!headers.TryGetValue("content-length", out var lenText) || !int.TryParse(lenText, out var len))
+        var prefix = head.BodyPrefix;
+        if (!head.Headers.TryGetValue("content-length", out var lenText) || !int.TryParse(lenText, out var len))
             return prefix;
         len = Math.Min(len, 20 * 1024 * 1024);
         var body = new byte[Math.Max(0, len)];
