@@ -332,6 +332,21 @@ public static class LinkServer
     {
         try
         {
+            if (method == "POST" && path.StartsWith("/bomfile", StringComparison.OrdinalIgnoreCase))
+            {
+                // 浏览器上传 BOM 文件（二进制安全；name 参数为文件名）
+                var name = "bom.csv";
+                var q = path.IndexOf("name=", StringComparison.OrdinalIgnoreCase);
+                if (q >= 0)
+                {
+                    name = Uri.UnescapeDataString(path[(q + 5)..].Split('&')[0]);
+                    if (name.Contains('/') || name.Contains('\\')) name = Path.GetFileName(name);
+                }
+                var bytes = await ReadBodyBytes(s, headers);
+                var reply = await ImportBomFile(bytes, name);
+                await WriteHttp(s, 200, reply);
+                return;
+            }
             if (method == "POST" && path.StartsWith("/bom", StringComparison.OrdinalIgnoreCase))
             {
                 var body = await ReadBody(s, headers);
@@ -373,10 +388,19 @@ public static class LinkServer
                 if (path == "/" || path.StartsWith("/index", StringComparison.OrdinalIgnoreCase))
                 {
                     var addr = LanAddress() ?? $"{DefaultPort}";
-                    var html = "<!doctype html><meta charset=utf-8><body style=\"font-family:system-ui;padding:24px\">"
+                    var html = "<!doctype html><meta charset=utf-8><body style=\"font-family:system-ui;padding:24px;max-width:640px\">"
                         + "<h3>📱 BOM 找料助手 · 联动服务运行中</h3>"
                         + $"<p>本机地址：<code>{addr}</code></p>"
-                        + $"<p>插件设置里填：<code>ws://{addr}</code></p></body>";
+                        + $"<p>插件设置里填：<code>ws://{addr}</code></p>"
+                        + "<hr><h4>导入 BOM 文件（.csv / .xlsx / .json）</h4>"
+                        + "<p><input type=\"file\" id=\"f\" accept=\".csv,.xlsx,.json\"> "
+                        + "<button onclick=\"up()\">上传到手机</button></p>"
+                        + "<p id=\"out\" style=\"white-space:pre-wrap\"></p>"
+                        + "<script>async function up(){var f=document.getElementById('f');if(!f.files.length){alert('先选文件');return;}"
+                        + "document.getElementById('out').textContent='上传中…';"
+                        + "try{var r=await fetch('/bomfile?name='+encodeURIComponent(f.files[0].name),{method:'POST',body:f.files[0]});"
+                        + "var j=await r.json();document.getElementById('out').textContent=j.ok?('✓ 已导入 '+j.lines+' 行物料（'+j.project+'）· 手机上确认套数即可'):('✗ '+(j.error||'失败'));}"
+                        + "catch(e){document.getElementById('out').textContent='✗ '+e;}}</script></body>";
                     await WriteHttp(s, 200, html, "text/html; charset=utf-8");
                     return;
                 }
@@ -387,10 +411,14 @@ public static class LinkServer
     }
 
     static async Task<string> ReadBody(NetworkStream s, Dictionary<string, string> headers)
+        => Encoding.UTF8.GetString(await ReadBodyBytes(s, headers));
+
+    /// <summary>二进制安全的请求体读取（xlsx 等文件上传不能走 UTF-8 字符串路径）。</summary>
+    static async Task<byte[]> ReadBodyBytes(NetworkStream s, Dictionary<string, string> headers)
     {
         var prefix = Encoding.UTF8.GetBytes(headers.GetValueOrDefault("__bodyPrefix", ""));
         if (!headers.TryGetValue("content-length", out var lenText) || !int.TryParse(lenText, out var len))
-            return Encoding.UTF8.GetString(prefix);
+            return prefix;
         len = Math.Min(len, 20 * 1024 * 1024);
         var body = new byte[Math.Max(0, len)];
         var have = Math.Min(prefix.Length, body.Length);
@@ -401,7 +429,7 @@ public static class LinkServer
             if (n == 0) break;
             have += n;
         }
-        return Encoding.UTF8.GetString(body, 0, have);
+        return body[..have];
     }
 
     static async Task WriteHttp(NetworkStream s, int code, string body, string contentType = "application/json; charset=utf-8")
@@ -423,15 +451,7 @@ public static class LinkServer
             var push = JsonSerializer.Deserialize<BomDoc>(body, BomModels.JsonOpts);
             if (push is null || push.Lines is not { Count: > 0 })
                 return "{\"ok\":false,\"error\":\"empty lines\"}";
-            var lines = push.Lines
-                .Where(l => !string.IsNullOrWhiteSpace(l.Lcsc))
-                .Select(l =>
-                {
-                    l.Lcsc = l.Lcsc.Trim().ToUpperInvariant();
-                    if (l.Qty < 1) l.Qty = Math.Max(1, l.Designators?.Count ?? 1);
-                    return l;
-                })
-                .ToList();
+            var lines = BomFileImport.NormalizeLines(push.Lines);
             if (lines.Count == 0) return "{\"ok\":false,\"error\":\"no lcsc lines\"}";
 
             await MainThread.InvokeOnMainThreadAsync(() =>
@@ -442,6 +462,32 @@ public static class LinkServer
         }
         catch (Exception e)
         {
+            return $"{{\"ok\":false,\"error\":{Json(e.Message)}}}";
+        }
+    }
+
+    /// <summary>导入浏览器上传的 BOM 文件（.csv / .xlsx / .json），与 App 内文件选择器同一套解析。</summary>
+    static async Task<string> ImportBomFile(byte[] bytes, string fileName)
+    {
+        try
+        {
+            using var ms = new MemoryStream(bytes);
+            var doc = BomFileImport.Parse(ms, fileName, out var report);
+            var lines = BomFileImport.NormalizeLines(doc.Lines);
+            if (lines.Count == 0) return "{\"ok\":false,\"error\":\"no lcsc lines\"}";
+            doc.Project = BomFileImport.ProjectNameFrom(fileName);
+            doc.Lines = lines;
+
+            // 与 App 内导入一致：默认 1 套，套数在手机主页上调
+            await MainThread.InvokeOnMainThreadAsync(() => BomState.Instance.Load(doc, 1));
+
+            EmitState();
+            Console.WriteLine($"[LinkServer] /bomfile {fileName}：{report}");
+            return $"{{\"ok\":true,\"lines\":{lines.Count},\"project\":{Json(doc.Project)},\"report\":{Json(report)}}}";
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"[LinkServer] /bomfile {fileName} 失败: {e.Message}");
             return $"{{\"ok\":false,\"error\":{Json(e.Message)}}}";
         }
     }

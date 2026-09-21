@@ -19,6 +19,15 @@ public static class LcedaBomParser
 {
     public static LcedaBomParseResult Parse(Stream stream, string fileName)
     {
+        // 部分机型的文件选择器返回不可定位（CanSeek=false）的流，
+        // 下面 stream.Position = 0 会直接抛 NotSupportedException——先完整拷进内存
+        if (!stream.CanSeek)
+        {
+            var ms = new MemoryStream();
+            stream.CopyTo(ms);
+            stream = ms;
+        }
+
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         var isZip = IsZip(stream);
         stream.Position = 0;

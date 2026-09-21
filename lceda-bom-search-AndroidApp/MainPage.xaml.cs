@@ -113,12 +113,13 @@ public partial class MainPage : ContentPage
         try
         {
             using var stream = File.OpenRead(path);
-            var (doc, report) = await ParseBomStreamAsync(stream, Path.GetFileName(path));
+            var doc = BomFileImport.Parse(stream, Path.GetFileName(path), out var report);
             await FinishImportAsync(doc, report, Path.GetFileName(path));
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("导入失败", ex.Message, "好");
+            Console.WriteLine($"[BomImport] {path} 导入失败: {ex}");
+            await DisplayAlertAsync("导入失败", $"{ex.GetType().Name}: {ex.Message}", "好");
         }
     }
 
@@ -187,43 +188,25 @@ public partial class MainPage : ContentPage
 
     async void OnImportBom(object? sender, EventArgs e)
     {
+        string? pickedName = null;
         try
         {
             // 不限扩展名：手机文件选择器对 .csv/.xlsx 的 MIME 识别不稳定
             var res = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "选择 BOM 文件（.csv / .xlsx / .json）" });
             if (res is null) return;
+            pickedName = res.FileName;
 
             using var stream = await res.OpenReadAsync();
-            var (doc, report) = await ParseBomStreamAsync(stream, res.FileName);
+            var doc = BomFileImport.Parse(stream, res.FileName, out var report);
             await FinishImportAsync(doc, report, res.FileName);
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("导入失败", ex.Message, "好");
+            // 细节进 logcat（DOTNET tag），弹窗给关键信息；浏览器上传是备选导入通道（手机地址 /bomfile）
+            Console.WriteLine($"[BomImport] {(pickedName ?? "(未选文件)")} 导入失败: {ex}");
+            await DisplayAlertAsync("导入失败",
+                $"{pickedName}\n{ex.GetType().Name}: {ex.Message}\n\n也可以在电脑浏览器打开手机地址直接上传 BOM 文件。", "好");
         }
-    }
-
-    static async Task<(BomDoc doc, string report)> ParseBomStreamAsync(Stream stream, string fileName)
-    {
-        var ext = Path.GetExtension(fileName).ToLowerInvariant();
-
-        if (ext == ".json")
-        {
-            var doc = await JsonSerializer.DeserializeAsync<BomDoc>(stream, BomModels.JsonOpts)
-                      ?? throw new InvalidDataException("JSON 解析为空");
-            if (doc.Lines is not { Count: > 0 })
-                throw new InvalidDataException("文件里没有物料行（lines 为空）");
-            return (doc, $"JSON BOM：{doc.Lines.Count} 行");
-        }
-
-        // 立创 EDA 导出的 .csv / .xlsx（其他扩展名也按表格式尝试）
-        var parsed = LcedaBomParser.Parse(stream, fileName);
-        if (parsed.Doc.Lines.Count == 0)
-            throw new InvalidDataException("没有一行带商品编号（C 编号）的物料");
-        var report = parsed.SkippedRows > 0
-            ? $"共 {parsed.TotalRows} 行 · 可扫码匹配 {parsed.Doc.Lines.Count} 行 · 忽略 {parsed.SkippedRows} 行（无 C 编号）"
-            : $"共 {parsed.Doc.Lines.Count} 行物料";
-        return (parsed.Doc, report);
     }
 
     async Task FinishImportAsync(BomDoc doc, string report, string fileName)
